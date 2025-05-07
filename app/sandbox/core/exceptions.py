@@ -1,17 +1,47 @@
 """Exception classes for the sandbox system.
 
-This module defines custom exceptions used throughout the sandbox system to
-handle various error conditions in a structured way.
+这个模块定义了沙箱系统使用的自定义异常类，用于以结构化的方式处理各种错误情况。
+
+教学点:
+1. 异常继承结构: 通过创建基础异常类和特定异常子类，建立清晰的异常层次结构
+2. 自定义异常的价值: 相比使用通用异常如RuntimeError，自定义异常提供更精确的错误类型信息
+3. 可读性与可维护性: 良好命名的异常类使代码更易于理解和维护
+4. 异常文档字符串: 每个异常类都有解释其用途的文档字符串
 """
 
 
 class SandboxError(Exception):
-    """Base exception for sandbox-related errors."""
+    """沙箱相关错误的基础异常类。
+
+    通过从Exception继承创建一个自定义基础异常，我们可以:
+    1. 在捕获异常时统一处理所有沙箱相关错误 (使用 except SandboxError)
+    2. 为更具体的沙箱错误类型提供共同的父类
+    3. 使代码更具可读性，因为异常名称直接反映了错误域
+
+    初学者提示: 为应用程序的主要组件创建自定义基础异常是一种良好实践
+    """
 
 
 class SandboxTimeoutError(SandboxError):
-    """Exception raised when a sandbox operation times out."""
+    """当沙箱操作超时时抛出的异常。
+
+    这个特定异常允许调用代码区分超时错误和其他类型的沙箱错误，
+    从而能够针对超时情况采取特定的恢复策略。
+
+    教学点: 特定异常类型使错误处理更精确，让调用者能够根据确切的错误类型
+    决定如何响应，而不是对所有错误使用相同的处理方式。
+    """
 
 
 class SandboxResourceError(SandboxError):
-    """Exception raised for resource-related errors."""
+    """资源相关错误的异常类。
+
+    当沙箱遇到资源限制或资源管理问题时使用，例如:
+    - 内存限制达到
+    - 磁盘空间不足
+    - CPU配额耗尽
+    - 无法分配所需的网络资源
+
+    通过使用特定的资源错误类，代码可以识别资源相关问题并适当地响应，
+    例如清理资源、降低使用配额或通知用户资源限制。
+    """

@@ -1,3 +1,17 @@
+"""
+浏览器自动化工具模块 (Browser Automation Tool Module)
+
+这个模块实现了一个强大的浏览器自动化工具，允许智能体与网页进行交互，包括导航、点击元素、
+输入文本、滚动页面和提取内容等操作。它基于browser_use库构建，提供了状态保持的浏览会话。
+
+教学点:
+1. 浏览器自动化: 使用无头浏览器实现网页交互
+2. 泛型编程: 使用Python泛型支持上下文类型
+3. 参数校验: 使用pydantic验证器确保参数正确性
+4. 状态管理: 维护跨调用的浏览器会话状态
+5. 并发控制: 使用异步锁防止并发操作冲突
+"""
+
 import asyncio
 import base64
 import json
@@ -14,7 +28,6 @@ from app.config import config
 from app.llm import LLM
 from app.tool.base import BaseTool, ToolResult
 from app.tool.web_search import WebSearch
-
 
 _BROWSER_DESCRIPTION = """\
 A powerful browser automation tool that allows interaction with web pages through various actions.
@@ -33,10 +46,37 @@ Key capabilities include:
 Note: When using element indices, refer to the numbered elements shown in the current browser state.
 """
 
+# 定义一个类型变量，用于工具上下文的泛型支持
 Context = TypeVar("Context")
 
 
 class BrowserUseTool(BaseTool, Generic[Context]):
+    """浏览器自动化工具类。
+
+    这个工具提供了与网页交互的各种功能，包括导航、点击、输入文本、
+    滚动和提取内容等。它维护一个持久的浏览器会话，使智能体能够
+    执行复杂的多步骤网页任务。
+
+    设计特点:
+    1. 泛型支持: 使用TypeVar支持不同类型的上下文
+    2. 状态保持: 维护浏览器会话状态
+    3. 并发控制: 使用锁防止并发操作
+    4. 参数依赖: 使用JSON Schema定义参数依赖关系
+    5. 组合功能: 集成WebSearch工具提供搜索能力
+
+    属性:
+        name: 工具的名称标识符。
+        description: 工具功能的详细描述。
+        parameters: 工具参数的JSON Schema定义，包含动作和依赖。
+        lock: 用于防止并发操作的异步锁。
+        browser: Browser-use浏览器实例。
+        context: 浏览器上下文实例。
+        dom_service: DOM服务实例，用于DOM操作。
+        web_search_tool: 集成的网络搜索工具。
+        tool_context: 工具的泛型上下文。
+        llm: 语言模型实例，用于内容提取和理解。
+    """
+
     name: str = "browser_use"
     description: str = _BROWSER_DESCRIPTION
     parameters: dict = {
@@ -121,32 +161,69 @@ class BrowserUseTool(BaseTool, Generic[Context]):
         },
     }
 
-    lock: asyncio.Lock = Field(default_factory=asyncio.Lock)
-    browser: Optional[BrowserUseBrowser] = Field(default=None, exclude=True)
-    context: Optional[BrowserContext] = Field(default=None, exclude=True)
-    dom_service: Optional[DomService] = Field(default=None, exclude=True)
-    web_search_tool: WebSearch = Field(default_factory=WebSearch, exclude=True)
+    # 实例属性定义
+    lock: asyncio.Lock = Field(default_factory=asyncio.Lock)  # 用于防止并发操作的锁
+    browser: Optional[BrowserUseBrowser] = Field(
+        default=None, exclude=True
+    )  # 浏览器实例
+    context: Optional[BrowserContext] = Field(
+        default=None, exclude=True
+    )  # 浏览器上下文
+    dom_service: Optional[DomService] = Field(default=None, exclude=True)  # DOM服务
+    web_search_tool: WebSearch = Field(
+        default_factory=WebSearch, exclude=True
+    )  # 搜索工具
 
-    # Context for generic functionality
+    # 泛型上下文
     tool_context: Optional[Context] = Field(default=None, exclude=True)
 
-    llm: Optional[LLM] = Field(default_factory=LLM)
+    llm: Optional[LLM] = Field(default_factory=LLM)  # 语言模型实例
 
     @field_validator("parameters", mode="before")
     def validate_parameters(cls, v: dict, info: ValidationInfo) -> dict:
+        """验证工具参数。
+
+        这个验证器确保参数字典不为空，防止在工具初始化时出现错误。
+        它展示了如何使用pydantic的字段验证器实现自定义验证逻辑。
+
+        参数:
+            v: 要验证的参数字典。
+            info: 验证上下文信息。
+
+        返回:
+            验证后的参数字典。
+
+        异常:
+            ValueError: 如果参数为空。
+        """
         if not v:
             raise ValueError("Parameters cannot be empty")
         return v
 
     async def _ensure_browser_initialized(self) -> BrowserContext:
-        """Ensure browser and context are initialized."""
+        """确保浏览器和上下文已初始化。
+
+        这个辅助方法检查并在需要时初始化浏览器实例和上下文。
+        它展示了惰性初始化模式和从配置构建复杂对象的方法。
+
+        初始化流程:
+        1. 检查浏览器实例是否存在，不存在则创建
+        2. 从配置加载浏览器设置（如代理、安全选项等）
+        3. 创建浏览器上下文
+        4. 初始化DOM服务
+
+        返回:
+            初始化好的浏览器上下文。
+        """
         if self.browser is None:
+            # 基本浏览器配置
             browser_config_kwargs = {"headless": False, "disable_security": True}
 
+            # 处理额外的浏览器配置
             if config.browser_config:
                 from browser_use.browser.browser import ProxySettings
 
-                # handle proxy settings.
+                # 处理代理设置
                 if config.browser_config.proxy and config.browser_config.proxy.server:
                     browser_config_kwargs["proxy"] = ProxySettings(
                         server=config.browser_config.proxy.server,
@@ -154,6 +231,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                         password=config.browser_config.proxy.password,
                     )
 
+                # 从配置加载其他浏览器属性
                 browser_attrs = [
                     "headless",
                     "disable_security",
@@ -169,12 +247,14 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                         if not isinstance(value, list) or value:
                             browser_config_kwargs[attr] = value
 
+            # 创建浏览器实例
             self.browser = BrowserUseBrowser(BrowserConfig(**browser_config_kwargs))
 
+        # 初始化浏览器上下文
         if self.context is None:
             context_config = BrowserContextConfig()
 
-            # if there is context config in the config, use it.
+            # 从配置加载上下文配置
             if (
                 config.browser_config
                 and hasattr(config.browser_config, "new_context_config")
@@ -182,6 +262,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             ):
                 context_config = config.browser_config.new_context_config
 
+            # 创建上下文和DOM服务
             self.context = await self.browser.new_context(context_config)
             self.dom_service = DomService(await self.context.get_current_page())
 
@@ -201,24 +282,36 @@ class BrowserUseTool(BaseTool, Generic[Context]):
         seconds: Optional[int] = None,
         **kwargs,
     ) -> ToolResult:
-        """
-        Execute a specified browser action.
+        """执行浏览器动作。
 
-        Args:
-            action: The browser action to perform
-            url: URL for navigation or new tab
-            index: Element index for click or input actions
-            text: Text for input action or search query
-            scroll_amount: Pixels to scroll for scroll action
-            tab_id: Tab ID for switch_tab action
-            query: Search query for Google search
-            goal: Extraction goal for content extraction
-            keys: Keys to send for keyboard actions
-            seconds: Seconds to wait
-            **kwargs: Additional arguments
+        这个方法实现了BaseTool的抽象execute方法，是工具的主要入口点。
+        它根据action参数分发不同的浏览器操作，并确保操作的原子性。
 
-        Returns:
-            ToolResult with the action's output or error
+        执行流程:
+        1. 获取锁，防止并发操作
+        2. 确保浏览器已初始化
+        3. 根据动作类型分派到相应的操作
+        4. 获取执行后的浏览器状态
+        5. 返回操作结果和当前状态
+
+        参数:
+            action: 要执行的浏览器动作。
+            url: 用于导航或打开标签页的URL。
+            index: 元素索引，用于点击、输入等操作。
+            text: 用于输入、滚动到文本等操作的文本。
+            scroll_amount: 滚动像素数量。
+            tab_id: 标签页ID，用于切换标签页。
+            query: 搜索查询。
+            goal: 内容提取目标。
+            keys: 要发送的按键。
+            seconds: 等待秒数。
+            **kwargs: 其他未使用的参数。
+
+        返回:
+            包含操作结果和当前浏览器状态的ToolResult。
+
+        异常:
+            可能抛出与特定浏览器操作相关的异常。
         """
         async with self.lock:
             try:
@@ -479,9 +572,22 @@ Page content:
     async def get_current_state(
         self, context: Optional[BrowserContext] = None
     ) -> ToolResult:
-        """
-        Get the current browser state as a ToolResult.
-        If context is not provided, uses self.context.
+        """获取当前浏览器状态。
+
+        这个方法获取当前浏览器状态的快照，包括页面内容、可交互元素和截图。
+        它在每次操作后调用，为智能体提供当前网页的视觉和结构信息。
+
+        状态获取流程:
+        1. 使用DOM服务获取页面内容
+        2. 标记可交互元素
+        3. 生成页面截图
+        4. 创建包含所有信息的状态快照
+
+        参数:
+            context: 可选的浏览器上下文，默认使用当前上下文。
+
+        返回:
+            包含当前浏览器状态的ToolResult。
         """
         try:
             # Use provided context or fall back to self.context
@@ -539,7 +645,16 @@ Page content:
             return ToolResult(error=f"Failed to get browser state: {str(e)}")
 
     async def cleanup(self):
-        """Clean up browser resources."""
+        """清理浏览器资源。
+
+        这个方法关闭浏览器和相关资源，确保在工具不再使用时释放资源。
+        它展示了资源管理的最佳实践，特别是对于需要显式清理的外部资源。
+
+        清理流程:
+        1. 关闭浏览器上下文
+        2. 关闭浏览器实例
+        3. 重置状态
+        """
         async with self.lock:
             if self.context is not None:
                 await self.context.close()
@@ -550,7 +665,12 @@ Page content:
                 self.browser = None
 
     def __del__(self):
-        """Ensure cleanup when object is destroyed."""
+        """析构函数。
+
+        这个方法在对象被垃圾回收时调用，确保即使在异常情况下也能清理资源。
+        它使用asyncio创建一个新事件循环来执行异步清理，这是处理Python中
+        异步资源析构的一种常见模式。
+        """
         if self.browser is not None or self.context is not None:
             try:
                 asyncio.run(self.cleanup())
@@ -561,7 +681,17 @@ Page content:
 
     @classmethod
     def create_with_context(cls, context: Context) -> "BrowserUseTool[Context]":
-        """Factory method to create a BrowserUseTool with a specific context."""
+        """使用上下文创建工具实例的类方法。
+
+        这个工厂方法创建一个带有指定上下文的BrowserUseTool实例。
+        它展示了如何使用类方法和泛型创建定制化的工具实例。
+
+        参数:
+            context: 要关联到工具的上下文对象。
+
+        返回:
+            绑定了指定上下文的BrowserUseTool实例。
+        """
         tool = cls()
         tool.tool_context = context
         return tool

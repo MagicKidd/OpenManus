@@ -1,6 +1,27 @@
+# app/prompt/browser.py
+# 浏览器自动化智能体的提示词模板
+
+"""
+浏览器自动化智能体是专门设计用于控制浏览器执行各种网页任务的智能体，
+如网页导航、表单填写、内容提取等。这种智能体需要理解网页结构和浏览器交互模式。
+
+本文件定义了浏览器自动化智能体的提示词模板，强调如何理解和操作网页元素。
+对于初学者来说，这展示了如何设计能够理解结构化界面并与之交互的智能体提示词。
+
+设计特点:
+- 输入格式规范: 详细说明如何理解网页元素的表示
+- 响应格式规范: 要求以JSON格式响应，确保结构化输出
+- 行动指南: 提供常见操作序列的示例
+- 视觉上下文感知: 包含对图像理解的指导
+"""
+
+# 系统提示词: 详细定义浏览器智能体的角色、输入理解和响应规范
+# 包含元素交互、导航、错误处理和任务完成的全面指导
 SYSTEM_PROMPT = """\
 You are an AI agent designed to automate browser tasks. Your goal is to accomplish the ultimate task following the rules.
 
+# 输入格式部分: 定义了智能体将接收到的信息格式，包括任务、历史步骤、当前URL、
+# 标签页信息和可交互元素的表示方法
 # Input Format
 Task
 Previous steps
@@ -17,6 +38,7 @@ Example:
 - Only elements with numeric indexes in [] are interactive
 - elements without [] provide only context
 
+# 响应规则部分: 定义智能体必须遵循的输出格式和行动规则
 # Response Rules
 1. RESPONSE FORMAT: You must ALWAYS respond with valid JSON in this exact format:
 {{"current_state": {{"evaluation_previous_goal": "Success|Failed|Unknown - Analyze the current elements and the image to check if the previous goals/actions are successful like intended by the task. Mention if something unexpected happened. Shortly state why/why not",
@@ -70,6 +92,8 @@ Common action sequences:
 Your responses must be always JSON with the specified format.
 """
 
+# 下一步提示词: 指导智能体基于当前状态决定下一步行动
+# 包含当前状态解释和可用操作的详细指南，使用格式化变量插入动态信息
 NEXT_STEP_PROMPT = """
 What should I do next to achieve my goal?
 
@@ -92,3 +116,39 @@ Be methodical - remember your progress and what you've learned so far.
 
 If you want to stop the interaction at any point, use the `terminate` tool/function call.
 """
+
+# 浏览器提示词设计的教学说明:
+#
+# 1. 结构化输入解析:
+#    - 提供详细的输入格式说明，教导如何理解网页元素表示方式
+#    - 使用方括号[index]标记可交互元素，区分可交互与非交互元素
+#    - 提供具体示例说明元素结构，如[33]<button>Submit Form</button>
+#
+# 2. JSON响应格式:
+#    - 要求始终使用特定JSON格式响应，培养结构化输出思维
+#    - 分离"current_state"和"action"部分，清晰区分分析和行动
+#    - 在"memory"字段中跟踪进度，特别是对重复任务的计数
+#
+# 3. 行动序列设计:
+#    - 通过"Common action sequences"提供常见操作模式，如表单填写和导航提取
+#    - 解释动作执行规则，如页面变化会中断序列
+#    - 鼓励效率，如一次性填写表单、链接不改变页面的操作
+#
+# 4. 错误处理策略:
+#    - 提供多种应对困境的方法，如尝试替代路径、处理弹窗和验证码
+#    - 强调使用滚动查找元素，处理不完全可见的内容
+#    - 推荐在新标签页研究，保持主任务的连续性
+#
+# 5. 任务管理与完成:
+#    - 明确定义何时使用"done"操作，避免过早结束
+#    - 强调对重复任务的计数和跟踪("count always inside 'memory'")
+#    - 禁止幻想不存在的行动("Don't hallucinate actions")
+#
+# 6. 视觉理解:
+#    - 指导使用图像理解页面布局
+#    - 解释边界框与元素索引的对应关系
+#    - 考虑视口之外的内容("Consider both what's visible and what might be beyond")
+#
+# 7. 动态状态感知:
+#    - 使用格式化变量如{url_placeholder}，允许插入动态状态信息
+#    - 鼓励"Be methodical"，系统性思考而非随机尝试
