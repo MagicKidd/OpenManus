@@ -1,0 +1,69 @@
+# Cursor Project Rules
+# 目标：提高协作一致性、代码质量与变更安全性；与本仓工程风格对齐。
+
+[language]
+# 统一中文注释与提交信息；函数/变量名用英文
+defaultLanguage = "zh-CN"
+
+[communication]
+# 简洁高信噪，状态更新短句；代码/指令用 Markdown fenced blocks
+preferConcise = true
+statusUpdates = true
+
+[code.style]
+# 强约束：清晰、可读、早返回、少嵌套
+naming = "DescriptiveEnglish"
+maxNesting = 3
+preferGuardClauses = true
+avoidInlineComments = true
+wrapLongLines = true
+
+[code.comments]
+# 注释写"为什么"而非"怎么做"；避免无意义注释
+whyOverHow = true
+fileHeader = false
+
+[code.errors]
+# 不吞异常；日志包含上下文；避免裸 except
+noSilentCatch = true
+logContext = true
+
+[python]
+# 与本仓对齐：类型显式于公开接口；避免 any
+typeHintsPublicAPI = true
+avoidAny = true
+
+[python.imports]
+# 按标准库/第三方/本地分组；禁止未使用导入
+grouping = true
+noUnused = true
+
+[testing]
+# 以 8 场景测试驱动；新增功能需配测试
+requireTestsForNewFeatures = true
+minCoverageNote = "关键逻辑须有单测"
+
+[git]
+# 原子提交、小步快跑；提交信息：类型: 简述 (#issue)
+atomicCommits = true
+conventionalCommits = true
+
+[security]
+# 禁止在代码中硬编码密钥；读取 CONFIG/环境变量
+noHardcodedSecrets = true
+
+[performance]
+# 异步优先；I/O 批处理；Redis 使用 pipeline/TTL
+preferAsync = true
+batchIO = true
+
+[review]
+# 变更包含：动机、影响面、回滚指引（虽本次无需回滚开关，但写清方案）
+changeSummaryRequired = true
+
+[project.intent]
+# 本阶段的核心目标（供 AI 与人类参考）：
+# - 三层意图识别（规则→记忆→LLM）落地 8 场景
+# - 两专家（讲解/导航）输入标准化，先实现讲解链路
+# - 直接改造，无回滚开关
+
