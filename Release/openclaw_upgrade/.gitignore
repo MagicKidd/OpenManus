@@ -1,0 +1,7 @@
+.DS_Store
+
+# Local clone of OpenClaw upstream source (large, tracked elsewhere)
+src/openclaw/
+
+# Avoid committing local copies/backups
+docs/*_副本.md
